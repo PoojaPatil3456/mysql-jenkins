@@ -1,0 +1,87 @@
+// Pipeline container multiple stages that deploy dev,prod,qa resources
+pipeline {
+    stages {
+        stage("pull") {
+            steps {
+                script {
+                   git clone "repo name"
+                }
+            }
+        }
+        stage("docker build") {
+            steps {
+                script {
+                  export PATH="/usr/local/bin:$PATH"
+                  docker build -t pooja99/customemysql:1 -f 
+                  docker build -t test -f Assignment1/mysql/Dockerfile .
+                }
+            }
+        }
+        // Deploy resource on dev environment
+        stage("Kubectl apply dev") {
+            when {
+                expression { params.ENV ==~ /all|dev/ }
+            }
+        // Get the dev cluster kubeconfig detils and secret file from jenkins secrets
+            environment {
+                ENV = "dev"
+                KUBECONFIG = credentials("${env.CREDENTIALSID}-${env.ENV}")
+                REGISTRY = "${REGISTRY_NEXUS}"
+                SECRET = credentials("cmsops_dev_secret")
+                NEXUS = credentials("${env.NEXUS_SECRET}")
+                NEWRELIC = credentials("${env.NEWRELIC_KEY}")
+            }
+            steps {
+                    deploy()
+                }
+            }
+        stage("Kubectl apply QA") {
+            when {
+                expression { params.ENV ==~ /all|qa/ }
+            }
+        // Get the qa cluster kubeconfig detils and secret file from jenkins secrets
+            environment {
+                ENV = "qa"
+                KUBECONFIG = credentials("${env.CREDENTIALSID}-${env.ENV}")
+                REGISTRY = "${REGISTRY_NEXUS}"
+                SECRET = credentials("cmsops_qa_secret")
+                NEXUS = credentials("${env.NEXUS_SECRET}")
+                NEWRELIC = credentials("${env.NEWRELIC_KEY}")
+            }
+            steps {
+                    deploy()
+                }
+            }
+        // Approval stage for producton deployment
+        stage('Prod deployment approval') {
+            when {
+                expression { params.ENV ==~ /all|prod/ }
+            }
+            steps {
+                script {
+                    def deploymentDelay = input id: 'Deploy', message: 'Deploy to production?', parameters: [choice(choices: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24'], description: 'Hours to delay deployment?', name: 'deploymentDelay')]
+                    sleep time: deploymentDelay.toInteger(), unit: 'HOURS'
+                }
+            }
+        }
+        stage("Kubectl apply prod") {
+            when {
+                expression { params.ENV ==~ /all|prod/ }
+            }
+         // Get the prod cluster kubeconfig detils and secret file from jenkins secrets
+            environment {
+                ENV = "prod"
+                KUBECONFIG = credentials("${env.CREDENTIALSID}-${env.ENV}")
+                REGISTRY = "${REGISTRY_NEXUS}"
+                SECRET = credentials("cmsops_prod_secret")
+                NEXUS = credentials("${env.NEXUS_SECRET}")
+                NEWRELIC = credentials("${env.NEWRELIC_KEY}")
+            }
+            steps {
+                    deploy()
+                }
+            }
+        }
+    }
+Collapse
+
